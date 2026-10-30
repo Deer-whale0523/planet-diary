@@ -1,0 +1,6 @@
+const CACHE = 'planet-diary-v05-1';
+const APP = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const THREE = 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js';
+self.addEventListener('install', event => { event.waitUntil((async()=>{ const cache=await caches.open(CACHE); await cache.addAll(APP); try { await cache.add(THREE); } catch(e) { console.warn('3D 資源尚未快取；請連網重新開啟一次',e); } await self.skipWaiting(); })()); });
+self.addEventListener('activate', event => {event.waitUntil((async()=>{await Promise.all((await caches.keys()).filter(k=>k.startsWith('planet-diary-')&&k!==CACHE).map(k=>caches.delete(k)));await self.clients.claim();})());});
+self.addEventListener('fetch', event => { if(event.request.method!=='GET') return; const url=new URL(event.request.url); if(url.origin!==self.location.origin && event.request.url!==THREE)return; event.respondWith((async()=>{const cache=await caches.open(CACHE);const cached=await cache.match(event.request);if(cached)return cached;try{const res=await fetch(event.request);if(res.ok||res.type==='opaque')await cache.put(event.request,res.clone());return res;}catch(e){if(event.request.mode==='navigate')return (await cache.match('./index.html'))||Response.error();return Response.error();}})());});
