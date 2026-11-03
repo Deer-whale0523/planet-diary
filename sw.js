@@ -1,4 +1,4 @@
-const CACHE = 'planet-diary-v05-1';
+const CACHE = 'planet-diary-v052-1';
 const APP = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const THREE = 'https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js';
 self.addEventListener('install', event => { event.waitUntil((async()=>{ const cache=await caches.open(CACHE); await cache.addAll(APP); try { await cache.add(THREE); } catch(e) { console.warn('3D 資源尚未快取；請連網重新開啟一次',e); } await self.skipWaiting(); })()); });

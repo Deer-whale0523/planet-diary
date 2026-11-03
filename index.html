@@ -8,14 +8,14 @@ header{padding:14px 20px;background:#1b3041}h2{margin:0;font-size:20px}main{disp
 .panel{background:#1b3041;border-radius:16px;padding:16px;flex:1 1 270px;max-width:390px}
 textarea,select{width:100%;border:0;border-radius:10px;padding:11px;font:inherit}textarea{min-height:100px;resize:vertical}
 button{border:0;border-radius:10px;padding:10px 13px;background:#83d3a1;color:#10241b;font-weight:bold;cursor:pointer;margin:6px 5px 4px 0}
-button.secondary{background:#bdd3df}button.active{background:#ffe4a3}button:disabled{opacity:.45;cursor:not-allowed}
+button.secondary{background:#bdd3df}button.active{background:#ffe4a3}button:disabled{opacity:.45;cursor:not-allowed}button.danger{background:#f1a6a6;color:#471818}
 #scene{flex:3 1 350px;min-height:520px;border-radius:18px;background:radial-gradient(circle at 50% 30%,#2e5971,#101c2b);position:relative;overflow:hidden}
 canvas{display:block;width:100%;height:100%;touch-action:none}
 #hint{position:absolute;bottom:12px;left:12px;right:12px;background:#122433dc;padding:9px 12px;border-radius:10px;font-size:13px;pointer-events:none}
 #message{white-space:pre-wrap;line-height:1.65;min-height:70px}small{color:#c0d6df}hr{border:0;border-top:1px solid #395366;margin:16px 0}
 label{display:block;margin:12px 0 6px}#count{margin:10px 0}#status{color:#ffe4a3;min-height:42px}
 </style></head><body>
-<header><h2>🌍 星球日記 · 手機安家 V0.5</h2></header>
+<header><h2>🌍 星球日記 · 手機安家 V0.5.2</h2></header>
 <main><section class="panel">
 <p>寫下一段回憶，種一棵樹、留下一片湖泊，或蓋一間小木屋。🌱🌊🏡</p>
 <textarea id="entry" placeholder="今天想留下什麼回憶呢？"></textarea>
@@ -23,10 +23,10 @@ label{display:block;margin:12px 0 6px}#count{margin:10px 0}#status{color:#ffe4a3
 <select id="species"><option value="round">🌳 圓葉樹</option><option value="pine">🌲 松樹</option><option value="cherry">🌸 櫻花樹</option></select>
 <p><button id="plant">🌱 準備種樹</button><button id="lake">🌊 準備挖湖</button><button id="cabin">🏡 準備蓋小木屋</button><button class="secondary" id="move">✋ 搬動樹木</button><button class="secondary" id="cancel">取消操作</button></p>
 <div id="status" role="status">一般模式：拖曳旋轉，點樹、湖或小木屋閱讀。</div><p id="count"></p>
-<hr><strong>📖 樹木日記</strong><p id="message">點擊樹木、湖泊或小木屋，讀取當時寫下的文字。</p>
+<hr><strong>📖 樹木日記</strong><p id="message">點擊樹木、湖泊或小木屋，讀取當時寫下的文字。</p><div id="recordActions" hidden><button class="secondary" id="editRecord">✏️ 編輯這篇</button><button class="danger" id="deleteRecord">🗑️ 刪除這篇與物件</button></div><div id="editArea" hidden><label for="editText">修改日記內容</label><textarea id="editText"></textarea><p><button id="saveEdit">💾 儲存修改</button><button class="secondary" id="cancelEdit">取消編輯</button></p></div>
 <small>回憶目前儲存在此網站的瀏覽器中，不會自動從舊 HTML 搬入。請先從舊版匯出 JSON，再於此匯入。清除網站資料仍可能遺失回憶，請定期備份。</small>
 <p><button class="secondary" id="export">💾 匯出備份 JSON</button><button class="secondary" id="import">📂 匯入回憶 JSON</button><input type="file" id="importFile" accept=".json,application/json" hidden></p><small>匯入採合併模式：保留現有回憶，相同 ID 不重複加入。匯入前建議先匯出目前資料。</small>
-</section><div id="scene"><div id="hint">拖曳旋轉 · 滾輪縮放 · 點樹、湖或小木屋閱讀｜種樹／挖湖：點草地｜搬動：先點樹，再點草地</div></div></main>
+</section><div id="scene"><div id="hint">單指旋轉 · 雙指縮放 · 點樹、湖或小木屋閱讀｜種樹／挖湖：點草地｜搬動：先點樹，再點草地</div></div></main>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.min.js"></script>
 <script>
 (()=>{
@@ -85,7 +85,57 @@ records.forEach(renderRecord);
 function save(){try{localStorage.setItem(key,JSON.stringify(records))}catch(e){status.textContent='⚠️ 無法寫入瀏覽器儲存空間，請立即匯出備份！'}count.textContent=`已種下 ${records.filter(r=>r.type!=='lake'&&r.type!=='cabin').length} 棵回憶樹 🌳 · ${records.filter(r=>r.type==='lake').length} 片湖泊 🌊 · ${records.filter(r=>r.type==='cabin').length} 間小木屋 🏡`}
 save();
 let ax=.25,ay=.35,dist=10,down=null,moved=false,mode='read',pending=null,selected=null;
-function setMode(m){mode=m;selected=null;pending=(m==='plant'||m==='lake'||m==='cabin')?pending:null;$('plant').classList.toggle('active',m==='plant');$('lake').classList.toggle('active',m==='lake');$('cabin').classList.toggle('active',m==='cabin');$('move').classList.toggle('active',m==='move')}
+let viewed=null;
+const recordActions=$('recordActions'),editArea=$('editArea'),editText=$('editText');
+function clearViewed(){
+ viewed=null;recordActions.hidden=true;editArea.hidden=true;
+}
+function viewRecord(r){
+ viewed=r;editArea.hidden=true;recordActions.hidden=false;
+ const kind=r.type==='lake'?'🌊 湖泊':r.type==='cabin'?'🏡 回憶小木屋':`🌳 ${({round:'圓葉樹',pine:'松樹',cherry:'櫻花樹'})[r.species||'pine']||'回憶樹'}`;
+ message.textContent=`📅 ${r.date}\\n${kind}\\n\\n${r.text}`;
+}
+function commitRecords(next){
+ try{localStorage.setItem(key,JSON.stringify(next));return true}
+ catch(e){status.textContent='⚠️ 儲存失敗，原始資料未修改。請先匯出備份！';return false}
+}
+$('editRecord').onclick=()=>{
+ if(!viewed)return;
+ editText.value=viewed.text;editArea.hidden=false;recordActions.hidden=true;
+ status.textContent='正在編輯日記；修改不會改變建立日期或物件位置。';
+};
+$('cancelEdit').onclick=()=>{
+ editArea.hidden=true;recordActions.hidden=!viewed;
+ status.textContent='已取消編輯，原始內容沒有變更。';
+};
+$('saveEdit').onclick=()=>{
+ if(!viewed)return;
+ const text=editText.value.trim();
+ if(!text){status.textContent='日記不能是空白；若不想保留，請使用刪除功能。';return}
+ const updated={...viewed,text};
+ const next=records.map(r=>r.id===viewed.id?updated:r);
+ if(!commitRecords(next))return;
+ records=next;
+ // 既有 3D 物件仍指向舊紀錄，直接更新文字保持點擊正常。
+ viewed.text=text;
+ viewRecord(viewed);
+ status.textContent='✏️ 日記修改成功！日期與物件位置保持不變。';
+};
+$('deleteRecord').onclick=()=>{
+ if(!viewed)return;
+ const r=viewed;
+ if(!confirm(`確定刪除這篇日記及對應的${r.type==='lake'?'湖泊':r.type==='cabin'?'小木屋':'樹木'}嗎？\\n\\n建立日期：${r.date}\\n\\n刪除後無法直接復原，建議先匯出 JSON 備份。`))return;
+ const next=records.filter(item=>item.id!==r.id);
+ if(!commitRecords(next))return;
+ records=next;
+ const map=r.type==='lake'?lakeMap:r.type==='cabin'?cabinMap:treeMap;
+ const obj=map.get(r.id);
+ if(obj){world.remove(obj);map.delete(r.id);obj.traverse(child=>{if(child.geometry)child.geometry.dispose()})}
+ clearViewed();message.textContent='這篇回憶與對應物件已刪除。';
+ save();status.textContent='🗑️ 已刪除，星球空間釋放了。';
+};
+
+function setMode(m){if(m!=='read')clearViewed();mode=m;selected=null;pending=(m==='plant'||m==='lake'||m==='cabin')?pending:null;$('plant').classList.toggle('active',m==='plant');$('lake').classList.toggle('active',m==='lake');$('cabin').classList.toggle('active',m==='cabin');$('move').classList.toggle('active',m==='move')}
 function update(){world.rotation.set(ax,ay,0);camera.position.set(0,0,dist);camera.lookAt(0,0,0)}
 function resize(){const w=sceneEl.clientWidth,h=sceneEl.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix()}
 new ResizeObserver(resize).observe(sceneEl);
@@ -97,7 +147,7 @@ function surfacePoint(e){const hit=raycast(e,[ball])[0];if(!hit)return null;retu
 function nearTree(n,exclude,placingType='tree'){return records.some(r=>{if(r.id===exclude)return false;const threshold=r.type==='lake'?(placingType==='lake'?.38:placingType==='cabin'?.31:.25):r.type==='cabin'?(placingType==='lake'?.32:placingType==='cabin'?.27:.23):(placingType==='lake'?.26:placingType==='cabin'?.23:.13);return new THREE.Vector3(...r.pos).normalize().angleTo(n)<threshold})}
 function handleClick(e){
  const rec=pickedTree(e),lake=pickedLake(e),cabin=pickedCabin(e);
- if(mode==='read'){if(cabin){message.textContent=`📅 ${cabin.date}\n🏡 回憶小木屋\n\n${cabin.text}`;return}if(lake&&!rec){message.textContent=`📅 ${lake.date}\n🌊 湖泊\n\n${lake.text}`;return}if(rec)message.textContent=`📅 ${rec.date}\n🌳 ${({round:'圓葉樹',pine:'松樹',cherry:'櫻花樹'})[rec.species||'pine']}\n\n${rec.text}`;return}
+ if(mode==='read'){if(cabin){viewRecord(cabin);return}if(lake&&!rec){viewRecord(lake);return}if(rec){viewRecord(rec);return}clearViewed();return}
  if(mode==='move'&&!selected){if(!rec){status.textContent='先點選想搬動的樹木。';return}selected=rec;status.textContent='已選擇樹木！現在點星球上的新位置。';return}
  if(mode==='move'&&rec){selected=rec;status.textContent='已改選這棵樹，請點草地選新位置。';return}
  const n=surfacePoint(e);if(!n){status.textContent='請點擊星球表面的草地。';return}
@@ -119,11 +169,41 @@ function handleClick(e){
   save();setMode('read');status.textContent='搬家完成！🌳 日記內容沒有改變。'
  }
 }
-renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,ax,ay};moved=false;renderer.domElement.setPointerCapture(e.pointerId)});
-renderer.domElement.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-down.x,dy=e.clientY-down.y;if(Math.abs(dx)+Math.abs(dy)>5)moved=true;ay=down.ay+dx*.006;ax=Math.max(-1.4,Math.min(1.4,down.ax+dy*.006))});
-renderer.domElement.addEventListener('pointerup',e=>{if(down&&!moved)handleClick(e);down=null});
-renderer.domElement.addEventListener('pointercancel',()=>{down=null});
-renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();dist=Math.max(5,Math.min(18,dist+e.deltaY*.012))},{passive:false});
+// V0.5.1: one finger rotates; two fingers pinch to zoom without triggering a tap.
+const activePointers=new Map();
+let pinchStart=null, suppressTap=false;
+const clampDistance=v=>Math.max(5,Math.min(18,v));
+function pointerGap(){const p=[...activePointers.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)}
+renderer.domElement.addEventListener('pointerdown',e=>{
+ activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ renderer.domElement.setPointerCapture(e.pointerId);
+ if(activePointers.size===1){down={id:e.pointerId,x:e.clientX,y:e.clientY,ax,ay};moved=false;suppressTap=false;pinchStart=null}
+ else{down=null;moved=true;suppressTap=true;if(activePointers.size===2)pinchStart={gap:pointerGap(),dist};}
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+ if(!activePointers.has(e.pointerId))return;
+ activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(activePointers.size===2&&pinchStart){
+  const gap=pointerGap();if(pinchStart.gap>0)dist=clampDistance(pinchStart.dist*pinchStart.gap/Math.max(gap,1));
+  return;
+ }
+ if(activePointers.size!==1||!down||down.id!==e.pointerId||suppressTap)return;
+ const dx=e.clientX-down.x,dy=e.clientY-down.y;
+ if(Math.abs(dx)+Math.abs(dy)>5)moved=true;
+ ay=down.ay+dx*.006;ax=Math.max(-1.4,Math.min(1.4,down.ax+dy*.006));
+});
+function finishPointer(e,cancelled){
+ const wasSingle=activePointers.size===1;
+ if(wasSingle&&!cancelled&&down&&down.id===e.pointerId&&!moved&&!suppressTap)handleClick(e);
+ activePointers.delete(e.pointerId);
+ down=null;
+ if(activePointers.size<2)pinchStart=null;
+ // Remaining finger must lift before a new tap or rotation can begin.
+ if(activePointers.size===0)suppressTap=false;
+}
+renderer.domElement.addEventListener('pointerup',e=>finishPointer(e,false));
+renderer.domElement.addEventListener('pointercancel',e=>finishPointer(e,true));
+renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();dist=clampDistance(dist+e.deltaY*.012)},{passive:false});
 $('plant').onclick=()=>{const text=entry.value.trim();if(!text){status.textContent='先寫一點文字，才能種下回憶樹唷 🌱';return}pending={text,species:$('species').value};setMode('plant');status.textContent='🌱 已準備好！旋轉星球，點一下想種樹的草地。'};
 $('lake').onclick=()=>{const text=entry.value.trim();if(!text){status.textContent='先寫一點文字，才能留下回憶湖泊唷 🌊';return}pending={text};setMode('lake');status.textContent='🌊 已準備好！旋轉星球，點一下想挖湖的草地。'};
 $('cabin').onclick=()=>{const text=entry.value.trim();if(!text){status.textContent='先寫一段回憶，才能蓋小木屋唷 🏡';return}pending={text};setMode('cabin');status.textContent='🏡 建材準備好了！旋轉星球，點一下想蓋小木屋的草地。'};
@@ -154,6 +234,7 @@ $('importFile').addEventListener('change',async e=>{
   const combined=[...records,...additions];
   try{localStorage.setItem(key,JSON.stringify(combined))}catch(err){throw new Error('儲存空間不足或無法寫入，原有資料未變更。')}
   records=combined;
+  clearViewed();
   additions.forEach(renderRecord);
   save();pending=null;setMode('read');
   status.textContent=`✅ 匯入成功！新增 ${additions.length} 筆回憶，略過 ${duplicates} 筆重複資料。`;
